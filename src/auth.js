@@ -51,18 +51,61 @@ export async function initAuth() {
     return authState;
   }
 
-  // Supabase mode
+  // 1. Listen for auth changes
+  supabase.auth.onAuthStateChange((_event, session) => {
+    authState = { user: session?.user ?? null, session };
+    notifyListeners();
+  });
+
+  // 2. Handle implicit OAuth callback if tokens are in URL hash (#access_token=...)
+  if (window.location.hash) {
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const accessToken = hashParams.get('access_token');
+    const refreshToken = hashParams.get('refresh_token');
+
+    if (accessToken && refreshToken) {
+      try {
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (!error && data?.session) {
+          window.history.replaceState({}, document.title, window.location.pathname.replace(/\*+/g, '') || '/');
+          authState = { user: data.session.user, session: data.session };
+          notifyListeners();
+          return authState;
+        }
+      } catch (err) {
+        console.warn('Error setting session from hash:', err);
+      }
+    }
+  }
+
+  // 3. Handle PKCE OAuth callback if authorization code is in URL query (?code=...)
+  if (window.location.search) {
+    const searchParams = new URLSearchParams(window.location.search);
+    const code = searchParams.get('code');
+    if (code) {
+      try {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+        if (!error && data?.session) {
+          window.history.replaceState({}, document.title, window.location.pathname.replace(/\*+/g, '') || '/');
+          authState = { user: data.session.user, session: data.session };
+          notifyListeners();
+          return authState;
+        }
+      } catch (err) {
+        console.warn('Error exchanging code for session:', err);
+      }
+    }
+  }
+
+  // 4. Retrieve existing session from storage
   const {
     data: { session },
   } = await supabase.auth.getSession();
   authState = { user: session?.user ?? null, session };
   notifyListeners();
-
-  // Listen for future changes
-  supabase.auth.onAuthStateChange((_event, session) => {
-    authState = { user: session?.user ?? null, session };
-    notifyListeners();
-  });
 
   return authState;
 }

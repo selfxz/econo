@@ -14,7 +14,13 @@ export const isSupabaseConfigured = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
 export let supabase = null;
 
 if (isSupabaseConfigured) {
-  supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+    },
+  });
 } else {
   console.warn(
     '⚠️ Supabase no configurado. Crea un archivo .env con VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.\n' +
