@@ -205,7 +205,30 @@ function renderAuthScreen() {
   document.getElementById('guest-login').addEventListener('click', () => {
     enterAsGuest();
   });
+
+  checkAuthUrlErrors();
 }
+
+function checkAuthUrlErrors() {
+  const params = new URLSearchParams(window.location.search);
+  const error = params.get('error');
+  const errorCode = params.get('error_code');
+  const errorDesc = params.get('error_description');
+
+  if (error || errorCode || errorDesc) {
+    // Clear error params from the URL bar so they don't persist on refresh
+    window.history.replaceState({}, document.title, window.location.pathname);
+
+    let message = 'Error al iniciar sesión.';
+    if (errorCode === 'bad_oauth_state' || (errorDesc && errorDesc.toLowerCase().includes('oauth state'))) {
+      message = 'La sesión de Google expiró o fue cancelada. Por favor, intenta de nuevo.';
+    } else if (errorDesc) {
+      message = decodeURIComponent(errorDesc.replace(/\+/g, ' '));
+    }
+    setTimeout(() => showToast(message, null, 4500), 150);
+  }
+}
+
 
 function renderMainApp(user) {
   const month = new Date().toLocaleDateString('es-PE', { month: 'long', year: 'numeric' });
@@ -942,6 +965,10 @@ async function boot() {
   // Listen for auth state changes
   onAuthChange((state) => {
     if (state.user) {
+      // Clean up access token from URL hash and normalize path
+      if (window.location.hash.includes('access_token') || window.location.pathname.includes('*')) {
+        window.history.replaceState({}, document.title, '/');
+      }
       renderMainApp(state.user);
     } else {
       cleanup();
